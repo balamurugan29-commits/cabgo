@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
+    "lint": "tsc --noEmit",
+    "test": "tsx ../tests/run_junit.ts",
     "start": "node dist/index.js"
   },
   "keywords": [],
