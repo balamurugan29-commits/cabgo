@@ -516,6 +516,25 @@ export interface DriverLocationEvent {
   timestamp: string;
 }
 
+export interface AuditLog {
+  id: string;
+  actor_id: string | null;
+  actor_email: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  details?: Record<string, any>;
+  ip_address?: string | null;
+  created_at: string;
+}
+
+export interface LocationSearchResult {
+  display_name: string;
+  lat: number;
+  lng: number;
+  place_id?: string | number;
+}
+
 // Extend Express Request
 declare global {
   namespace Express {

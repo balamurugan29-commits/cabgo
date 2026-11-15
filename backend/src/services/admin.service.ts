@@ -93,6 +93,15 @@ export class AdminService {
       emailService.sendDriverApproval(driverUser.email, driverUser.first_name || 'Driver').catch(console.error);
     }
 
+    this.logAction({
+      actor_id: adminId,
+      actor_email: 'admin@uberclone.com',
+      action: 'APPROVE_DRIVER',
+      entity_type: 'driver_profile',
+      entity_id: driverId,
+      details: { driverName: `${driverUser?.first_name} ${driverUser?.last_name}` },
+    }).catch(console.error);
+
     notificationService.create(
       driver.user_id,
       'Account Approved!',
@@ -113,6 +122,15 @@ export class AdminService {
 
     memoryStore.driverProfiles.set(driverId, driver);
 
+    this.logAction({
+      actor_id: adminId,
+      actor_email: 'admin@uberclone.com',
+      action: 'REJECT_DRIVER',
+      entity_type: 'driver_profile',
+      entity_id: driverId,
+      details: { reason },
+    }).catch(console.error);
+
     notificationService.create(
       driver.user_id,
       'Application Update',
@@ -131,7 +149,61 @@ export class AdminService {
     user.updated_at = new Date().toISOString();
 
     memoryStore.users.set(userId, user);
+
+    this.logAction({
+      actor_id: 'admin-001',
+      actor_email: 'admin@uberclone.com',
+      action: isSuspended ? 'SUSPEND_USER' : 'ACTIVATE_USER',
+      entity_type: 'user',
+      entity_id: userId,
+      details: { email: user.email, is_active: user.is_active },
+    }).catch(console.error);
+
     return user;
+  }
+
+  async getCustomers() {
+    const customers = Array.from(memoryStore.users.values()).filter((u) => u.role === UserRole.CUSTOMER);
+    return customers.map((c) => {
+      const profile = memoryStore.customerProfiles.get(c.id);
+      const userRides = Array.from(memoryStore.rides.values()).filter((r) => r.customer_id === c.id);
+      return {
+        ...c,
+        profile,
+        total_rides: userRides.length,
+        completed_rides: userRides.filter((r) => r.status === RideStatus.COMPLETED).length,
+      };
+    });
+  }
+
+  async logAction(data: {
+    actor_id: string;
+    actor_email: string;
+    action: string;
+    entity_type: string;
+    entity_id: string;
+    details?: Record<string, any>;
+    ip_address?: string;
+  }) {
+    const log = {
+      id: uuidv4(),
+      ...data,
+      created_at: new Date().toISOString(),
+    };
+    memoryStore.auditLogs.set(log.id, log);
+
+    try {
+      await supabase.from('audit_logs').insert(log);
+    } catch {
+      // fallback
+    }
+    return log;
+  }
+
+  async getAuditLogs() {
+    return Array.from(memoryStore.auditLogs.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
   }
 
   async getPromoCodes(): Promise<PromoCode[]> {

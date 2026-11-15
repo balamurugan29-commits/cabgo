@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { driverService } from '../services/driver.service';
+import { rideService } from '../services/ride.service';
 import { userService } from '../services/user.service';
 import { sendSuccess } from '../utils/response';
 
@@ -115,6 +116,39 @@ export class DriverController {
         vehicle_type as any
       );
       sendSuccess(res, candidates);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getActiveRide(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await userService.getUserByClerkId(req.userId || 'clerk_driver_001');
+      const profile = await driverService.getProfileByUserId(user.id);
+      if (!profile) {
+        res.status(404).json({ success: false, error: 'Driver profile not found' });
+        return;
+      }
+      const activeRide = await rideService.getActiveRideByDriver(profile.id);
+      sendSuccess(res, activeRide);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async rejectRide(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const user = await userService.getUserByClerkId(req.userId || 'clerk_driver_001');
+      const profile = await driverService.getProfileByUserId(user.id);
+      if (!profile) {
+        res.status(404).json({ success: false, error: 'Driver profile not found' });
+        return;
+      }
+      const { ride_id } = req.body;
+      if (ride_id) {
+        await rideService.rejectRideOffer(profile.id, ride_id);
+      }
+      sendSuccess(res, { rejected: true });
     } catch (err) {
       next(err);
     }

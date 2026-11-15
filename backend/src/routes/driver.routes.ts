@@ -19,6 +19,8 @@ router.put('/location', requireAuth, validate(updateLocationSchema), driverContr
 router.post('/vehicles', requireAuth, validate(addVehicleSchema), driverController.addVehicle);
 router.post('/documents', requireAuth, validate(uploadDocumentSchema), driverController.addDocument);
 router.get('/earnings', requireAuth, driverController.getEarnings);
+router.get('/active-ride', requireAuth, driverController.getActiveRide);
+router.post('/reject-ride', requireAuth, driverController.rejectRide);
 router.get('/nearby', driverController.getNearbyDrivers);
 
 export default router;

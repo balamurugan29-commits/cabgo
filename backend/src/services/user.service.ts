@@ -5,14 +5,19 @@ import { memoryStore } from '../utils/store';
 import { NotFoundError } from '../utils/errors';
 
 export class UserService {
-  async syncUser(clerkId: string, data: {
-    email: string;
-    first_name?: string;
-    last_name?: string;
-    phone?: string;
-    avatar_url?: string;
-    role?: UserRole;
-  }): Promise<User> {
+  async syncUser(
+    clerkIdOrData: string | { clerk_id: string; email: string; first_name?: string; last_name?: string; phone?: string; avatar_url?: string; role?: UserRole },
+    maybeData?: {
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      phone?: string;
+      avatar_url?: string;
+      role?: UserRole;
+    }
+  ): Promise<User> {
+    const clerkId = typeof clerkIdOrData === 'string' ? clerkIdOrData : clerkIdOrData.clerk_id;
+    const data = typeof clerkIdOrData === 'string' ? (maybeData || { email: '' }) : clerkIdOrData;
     const role = data.role || UserRole.CUSTOMER;
     try {
       const { data: existing } = await supabase

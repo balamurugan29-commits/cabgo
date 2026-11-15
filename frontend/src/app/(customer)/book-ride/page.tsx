@@ -23,7 +23,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { MapView } from '@/components/maps/map-view';
-import { rideApi, fareApi } from '@/services/api';
+import { rideApi, fareApi, locationApi } from '@/services/api';
 import { VehicleType, RideStatus } from '@/types';
 import { VEHICLE_DETAILS } from '@/lib/constants';
 import { getSocket } from '@/lib/socket';
@@ -64,9 +64,88 @@ function BookRideContent() {
   const [promoCode, setPromoCode] = useState('');
   const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount: number } | null>(null);
 
+  // Autocomplete suggestions
+  const [pickupSuggestions, setPickupSuggestions] = useState<any[]>([]);
+  const [dropoffSuggestions, setDropoffSuggestions] = useState<any[]>([]);
+  const [showPickupList, setShowPickupList] = useState(false);
+  const [showDropoffList, setShowDropoffList] = useState(false);
+
   // Booking states
   const [isBooking, setIsBooking] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
+
+  const recalculateDistance = (pLat: number, pLng: number, dLat: number, dLng: number) => {
+    const R = 6371;
+    const dLatRad = ((dLat - pLat) * Math.PI) / 180;
+    const dLonRad = ((dLng - pLng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLatRad / 2) * Math.sin(dLatRad / 2) +
+      Math.cos((pLat * Math.PI) / 180) *
+        Math.cos((dLat * Math.PI) / 180) *
+        Math.sin(dLonRad / 2) *
+        Math.sin(dLonRad / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    const km = Math.max(1.5, Math.round(R * c * 1.25 * 10) / 10);
+    const mins = Math.max(6, Math.round(km * 3.2));
+    setDistanceKm(km);
+    setDurationMinutes(mins);
+  };
+
+  const handleSearchPickup = (val: string) => {
+    setPickup({ ...pickup, address: val });
+    if (val.trim().length >= 2) {
+      locationApi
+        .search(val)
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            setPickupSuggestions(res.data);
+            setShowPickupList(true);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setShowPickupList(false);
+    }
+  };
+
+  const handleSearchDropoff = (val: string) => {
+    setDropoff({ ...dropoff, address: val });
+    if (val.trim().length >= 2) {
+      locationApi
+        .search(val)
+        .then((res) => {
+          if (Array.isArray(res.data)) {
+            setDropoffSuggestions(res.data);
+            setShowDropoffList(true);
+          }
+        })
+        .catch(() => {});
+    } else {
+      setShowDropoffList(false);
+    }
+  };
+
+  const selectPickupLocation = (item: any) => {
+    setPickup({
+      address: item.display_name,
+      lat: item.lat,
+      lng: item.lng,
+    });
+    setShowPickupList(false);
+    recalculateDistance(item.lat, item.lng, dropoff.lat, dropoff.lng);
+    toast.success('Pickup location set');
+  };
+
+  const selectDropoffLocation = (item: any) => {
+    setDropoff({
+      address: item.display_name,
+      lat: item.lat,
+      lng: item.lng,
+    });
+    setShowDropoffList(false);
+    recalculateDistance(pickup.lat, pickup.lng, item.lat, item.lng);
+    toast.success('Destination location set');
+  };
 
   useEffect(() => {
     const preset = searchParams?.get('preset');
@@ -214,7 +293,7 @@ function BookRideContent() {
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Pickup Input */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <label className="text-xs font-semibold text-muted-foreground flex items-center justify-between">
                 <span>Pickup Location</span>
                 <button
@@ -226,14 +305,30 @@ function BookRideContent() {
                 </button>
               </label>
               <div className="relative">
-                <div className="absolute left-3 top-2.5 size-2.5 rounded-full bg-blue-600" />
+                <div className="absolute left-3 top-2.5 size-2.5 rounded-full bg-blue-600 z-10" />
                 <Input
                   value={pickup.address}
-                  onChange={(e) => setPickup({ ...pickup, address: e.target.value })}
-                  placeholder="Enter pickup address"
+                  onChange={(e) => handleSearchPickup(e.target.value)}
+                  onFocus={() => pickupSuggestions.length > 0 && setShowPickupList(true)}
+                  placeholder="Search pickup address..."
                   className="pl-8 text-sm"
                 />
               </div>
+
+              {showPickupList && pickupSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto py-1">
+                  {pickupSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => selectPickupLocation(item)}
+                      className="px-3 py-2 text-xs hover:bg-muted cursor-pointer flex items-center gap-2 border-b border-border/40 last:border-0"
+                    >
+                      <MapPin className="size-3.5 text-primary shrink-0" />
+                      <span className="line-clamp-1">{item.display_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Intermediate Stops */}
@@ -266,17 +361,33 @@ function BookRideContent() {
             ))}
 
             {/* Destination Input */}
-            <div className="space-y-1.5">
+            <div className="space-y-1.5 relative">
               <label className="text-xs font-semibold text-muted-foreground">Destination</label>
               <div className="relative">
-                <div className="absolute left-3 top-2.5 size-2.5 rounded-full bg-emerald-500" />
+                <div className="absolute left-3 top-2.5 size-2.5 rounded-full bg-emerald-500 z-10" />
                 <Input
                   value={dropoff.address}
-                  onChange={(e) => setDropoff({ ...dropoff, address: e.target.value })}
-                  placeholder="Enter destination"
+                  onChange={(e) => handleSearchDropoff(e.target.value)}
+                  onFocus={() => dropoffSuggestions.length > 0 && setShowDropoffList(true)}
+                  placeholder="Search destination address..."
                   className="pl-8 text-sm"
                 />
               </div>
+
+              {showDropoffList && dropoffSuggestions.length > 0 && (
+                <div className="absolute left-0 right-0 top-full mt-1 bg-popover border border-border rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto py-1">
+                  {dropoffSuggestions.map((item, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => selectDropoffLocation(item)}
+                      className="px-3 py-2 text-xs hover:bg-muted cursor-pointer flex items-center gap-2 border-b border-border/40 last:border-0"
+                    >
+                      <MapPin className="size-3.5 text-emerald-500 shrink-0" />
+                      <span className="line-clamp-1">{item.display_name}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <Button

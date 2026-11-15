@@ -129,6 +129,9 @@ export default function DriverDashboardPage() {
   };
 
   const handleRejectRide = () => {
+    if (incomingRequest?.id) {
+      driverApi.rejectRide(incomingRequest.id).catch(() => {});
+    }
     setIncomingRequest(null);
     toast.info('Ride request declined');
   };

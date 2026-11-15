@@ -18,18 +18,46 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shared/page-header';
-import { customerApi, authApi } from '@/services/api';
+import { customerApi, authApi, uploadApi } from '@/services/api';
 import { EmergencyContact } from '@/types';
 import { toast } from 'sonner';
 
 export default function CustomerProfilePage() {
   const [loading, setLoading] = useState(true);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [user, setUser] = useState<any>({
     first_name: 'Alex',
     last_name: 'Morgan',
     email: 'customer@uberclone.com',
     phone: '+919876543211',
+    profile_image_url: null,
   });
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        setAvatarUploading(true);
+        toast.info('Uploading profile photo...');
+        const res = await uploadApi.upload({
+          file_base64: reader.result as string,
+          filename: file.name,
+          file_type: file.type,
+        });
+        const newAvatar = res.data.url;
+        await authApi.updateProfile({ profile_image_url: newAvatar });
+        setUser((prev: any) => ({ ...prev, profile_image_url: newAvatar }));
+        toast.success('Profile photo updated!');
+      } catch {
+        toast.error('Failed to upload profile photo');
+      } finally {
+        setAvatarUploading(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
   const [contacts, setContacts] = useState<EmergencyContact[]>([]);
 
   // Emergency contact modal / inputs
@@ -140,9 +168,29 @@ export default function CustomerProfilePage() {
         {/* User Card */}
         <Card className="md:col-span-1 shadow-sm">
           <CardContent className="p-6 text-center">
-            <div className="size-20 rounded-full bg-primary/10 text-primary mx-auto flex items-center justify-center font-bold text-2xl mb-3">
-              {user.first_name ? user.first_name[0] : 'U'}
+            <div className="relative size-20 rounded-full mx-auto mb-3 overflow-hidden border-2 border-primary/20 bg-primary/10 flex items-center justify-center font-bold text-2xl text-primary">
+              {user.profile_image_url ? (
+                <img
+                  src={user.profile_image_url}
+                  alt={user.first_name}
+                  className="size-full object-cover"
+                />
+              ) : (
+                <span>{user.first_name ? user.first_name[0] : 'U'}</span>
+              )}
             </div>
+
+            <label className="text-[11px] text-primary hover:underline cursor-pointer inline-block mb-3 font-semibold">
+              {avatarUploading ? 'Uploading...' : 'Change Photo'}
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleAvatarUpload}
+                className="hidden"
+                disabled={avatarUploading}
+              />
+            </label>
+
             <h3 className="font-bold text-base text-foreground">
               {user.first_name} {user.last_name}
             </h3>

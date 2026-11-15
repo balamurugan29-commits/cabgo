@@ -4,8 +4,11 @@ import {
   Ride,
   RideStatus,
   VehicleType,
+  DriverStatus,
   RideStop,
   DriverEarning,
+  Rating,
+  Review,
 } from '../types';
 import { memoryStore } from '../utils/store';
 import { NotFoundError, AppError } from '../utils/errors';
@@ -26,6 +29,8 @@ const VALID_TRANSITIONS: Record<RideStatus, RideStatus[]> = {
 };
 
 export class RideService {
+  private static assignmentLocks = new Set<string>();
+
   async createRide(
     customerId: string,
     data: {
@@ -175,44 +180,80 @@ export class RideService {
   }
 
   async assignDriver(rideId: string, driverId: string): Promise<Ride> {
-    const ride = memoryStore.rides.get(rideId);
-    if (!ride) throw new NotFoundError('Ride not found');
-
-    if (ride.status !== RideStatus.SEARCHING && ride.status !== RideStatus.REQUESTED) {
-      throw new AppError('Ride is no longer available', 400);
+    // Atomic concurrency lock check
+    if (RideService.assignmentLocks.has(rideId)) {
+      throw new AppError('Ride assignment is currently being processed by another driver', 409);
     }
-
-    const driverProfile = await driverService.getProfileById(driverId);
-    const vehicles = await driverService.getVehicles(driverId);
-    const vehicle = vehicles.find((v) => v.type === ride.vehicle_type && v.is_active) || vehicles[0];
-
-    const updatedRide: Ride = {
-      ...ride,
-      driver_id: driverId,
-      vehicle_id: vehicle ? vehicle.id : null,
-      status: RideStatus.ACCEPTED,
-      updated_at: new Date().toISOString(),
-    };
+    RideService.assignmentLocks.add(rideId);
 
     try {
-      await supabase.from('rides').update(updatedRide).eq('id', rideId);
-    } catch {
-      // fallback
+      const ride = memoryStore.rides.get(rideId);
+      if (!ride) throw new NotFoundError('Ride not found');
+
+      if (ride.status !== RideStatus.SEARCHING && ride.status !== RideStatus.REQUESTED) {
+        throw new AppError('Ride is no longer available or was accepted by another driver', 409);
+      }
+
+      // Verify driver eligibility
+      const driverProfile = await driverService.getProfileById(driverId);
+      if (driverProfile.status !== DriverStatus.APPROVED) {
+        throw new AppError('Only verified drivers can accept rides', 403);
+      }
+      if (!driverProfile.is_online) {
+        throw new AppError('Driver must be online to accept rides', 400);
+      }
+
+      const vehicles = await driverService.getVehicles(driverId);
+      const vehicle = vehicles.find((v) => v.type === ride.vehicle_type && v.is_active) || vehicles[0];
+
+      const updatedRide: Ride = {
+        ...ride,
+        driver_id: driverId,
+        vehicle_id: vehicle ? vehicle.id : null,
+        status: RideStatus.ACCEPTED,
+        updated_at: new Date().toISOString(),
+      };
+
+      try {
+        await supabase.from('rides').update(updatedRide).eq('id', rideId);
+      } catch {
+        // fallback
+      }
+
+      memoryStore.rides.set(rideId, updatedRide);
+
+      // Notify Customer
+      const driverUser = memoryStore.users.get(driverProfile.user_id);
+      notificationService.create(
+        ride.customer_id,
+        'Driver Assigned!',
+        `${driverUser?.first_name || 'Your driver'} is on the way.`,
+        'driver_assigned',
+        { rideId, driverName: driverUser?.first_name }
+      ).catch(console.error);
+
+      return updatedRide;
+    } finally {
+      RideService.assignmentLocks.delete(rideId);
     }
+  }
 
-    memoryStore.rides.set(rideId, updatedRide);
+  async rejectRideOffer(driverId: string, rideId: string): Promise<void> {
+    const existing = memoryStore.rejectedRideOffers.get(driverId) || new Set<string>();
+    existing.add(rideId);
+    memoryStore.rejectedRideOffers.set(driverId, existing);
+  }
 
-    // Notify Customer
-    const driverUser = memoryStore.users.get(driverProfile.user_id);
-    notificationService.create(
-      ride.customer_id,
-      'Driver Assigned!',
-      `${driverUser?.first_name || 'Your driver'} is on the way.`,
-      'driver_assigned',
-      { rideId, driverName: driverUser?.first_name }
-    ).catch(console.error);
-
-    return updatedRide;
+  async getActiveRideByDriver(driverId: string): Promise<any> {
+    for (const ride of memoryStore.rides.values()) {
+      if (
+        ride.driver_id === driverId &&
+        [RideStatus.ACCEPTED, RideStatus.DRIVER_ARRIVING, RideStatus.ARRIVED, RideStatus.IN_PROGRESS].includes(ride.status)
+      ) {
+        return this.getRideById(ride.id);
+      }
+    }
+    return null;
   }
 
   async updateRideStatus(rideId: string, nextStatus: RideStatus, reason?: string, cancelledBy?: string): Promise<Ride> {
@@ -303,6 +344,40 @@ export class RideService {
     }
     list.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
     return list;
+  }
+
+  async rateRide(rideId: string, customerId: string, score: number, reviewText?: string): Promise<{ rating: number; review?: string }> {
+    const ride = memoryStore.rides.get(rideId);
+    if (!ride) throw new NotFoundError('Ride not found');
+
+    const ratingRecord: Rating = {
+      id: uuidv4(),
+      ride_id: rideId,
+      rated_by: customerId,
+      rated_user: ride.driver_id || '',
+      rating: score,
+      created_at: new Date().toISOString(),
+    };
+
+    const existingRatings = memoryStore.ratings.get(ride.driver_id || '') || [];
+    existingRatings.push(ratingRecord);
+    memoryStore.ratings.set(ride.driver_id || '', existingRatings);
+
+    if (reviewText) {
+      const reviewRecord: Review = {
+        id: uuidv4(),
+        ride_id: rideId,
+        reviewer_id: customerId,
+        reviewed_user_id: ride.driver_id || '',
+        comment: reviewText,
+        created_at: new Date().toISOString(),
+      };
+      const existingReviews = memoryStore.reviews.get(ride.driver_id || '') || [];
+      existingReviews.push(reviewRecord);
+      memoryStore.reviews.set(ride.driver_id || '', existingReviews);
+    }
+
+    return { rating: score, review: reviewText };
   }
 }
 

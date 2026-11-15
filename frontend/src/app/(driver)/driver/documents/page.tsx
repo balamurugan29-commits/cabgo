@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { PageHeader } from '@/components/shared/page-header';
-import { driverApi } from '@/services/api';
+import { driverApi, uploadApi } from '@/services/api';
 import { DocumentType, DocumentStatus, DriverDocument } from '@/types';
 import { toast } from 'sonner';
 
@@ -49,6 +49,27 @@ export default function DriverDocumentsPage() {
   const [uploadType, setUploadType] = useState<DocumentType>(DocumentType.INSURANCE);
   const [docUrl, setDocUrl] = useState('https://images.unsplash.com/photo-1557804506-669a67965ba0?w=600');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async () => {
+      try {
+        toast.info('Uploading document scan...');
+        const res = await uploadApi.upload({
+          file_base64: reader.result as string,
+          filename: file.name,
+          file_type: file.type,
+        });
+        setDocUrl(res.data.url);
+        toast.success('Document uploaded successfully!');
+      } catch {
+        toast.error('File upload failed');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   useEffect(() => {
     driverApi
@@ -144,7 +165,17 @@ export default function DriverDocumentsPage() {
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-muted-foreground">Document Image URL / Supabase Storage</label>
+                  <label className="text-xs font-semibold text-muted-foreground">Choose Document File (PDF, PNG, JPG)</label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={handleFileChange}
+                    className="w-full text-xs text-muted-foreground file:mr-2 file:py-1 file:px-2.5 file:rounded-md file:border-0 file:text-xs file:font-semibold file:bg-primary/10 file:text-primary hover:file:bg-primary/20 cursor-pointer"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-muted-foreground">Document URL / Storage Key</label>
                   <Input
                     value={docUrl}
                     onChange={(e) => setDocUrl(e.target.value)}

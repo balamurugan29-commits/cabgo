@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Users, Search, ShieldAlert, CheckCircle2, UserX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,50 +11,45 @@ import { adminApi } from '@/services/api';
 import { toast } from 'sonner';
 
 export default function AdminCustomersPage() {
-  const [customers, setCustomers] = useState([
-    {
-      id: 'cust-1',
-      first_name: 'Alex',
-      last_name: 'Morgan',
-      email: 'customer@uberclone.com',
-      phone: '+91 9876543211',
-      total_rides: 14,
-      is_active: true,
-      created_at: '2026-01-10T10:00:00Z',
-    },
-    {
-      id: 'cust-2',
-      first_name: 'Priya',
-      last_name: 'Sharma',
-      email: 'priya.s@gmail.com',
-      phone: '+91 9811223344',
-      total_rides: 38,
-      is_active: true,
-      created_at: '2026-02-14T14:30:00Z',
-    },
-    {
-      id: 'cust-3',
-      first_name: 'David',
-      last_name: 'Chen',
-      email: 'david.c@outlook.com',
-      phone: '+91 9988776655',
-      total_rides: 5,
-      is_active: true,
-      created_at: '2026-03-01T09:15:00Z',
-    },
-    {
-      id: 'cust-4',
-      first_name: 'Rohan',
-      last_name: 'Verma',
-      email: 'rohan.v@yahoo.com',
-      phone: '+91 9123456789',
-      total_rides: 0,
-      is_active: false,
-      created_at: '2026-03-10T16:45:00Z',
-    },
-  ]);
-
+  const [customers, setCustomers] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    adminApi
+      .getCustomers()
+      .then((res) => {
+        if (Array.isArray(res.data) && res.data.length > 0) {
+          setCustomers(res.data);
+        } else {
+          // Fallback initial directory if none created yet
+          setCustomers([
+            {
+              id: 'cust-1',
+              first_name: 'Alex',
+              last_name: 'Morgan',
+              email: 'customer@uberclone.com',
+              phone_number: '+91 9876543211',
+              total_rides: 14,
+              is_active: true,
+              created_at: '2026-01-10T10:00:00Z',
+            },
+            {
+              id: 'cust-2',
+              first_name: 'Priya',
+              last_name: 'Sharma',
+              email: 'priya.s@gmail.com',
+              phone_number: '+91 9811223344',
+              total_rides: 38,
+              is_active: true,
+              created_at: '2026-02-14T14:30:00Z',
+            },
+          ]);
+        }
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
   const handleToggleSuspend = async (id: string, currentActive: boolean) => {
     try {
@@ -70,8 +65,9 @@ export default function AdminCustomersPage() {
 
   const filtered = customers.filter((c) => {
     const q = search.toLowerCase();
-    const name = `${c.first_name} ${c.last_name}`.toLowerCase();
-    return name.includes(q) || c.email.toLowerCase().includes(q) || c.phone.includes(q);
+    const name = `${c.first_name || ''} ${c.last_name || ''}`.toLowerCase();
+    const phone = c.phone_number || c.phone || '';
+    return name.includes(q) || (c.email && c.email.toLowerCase().includes(q)) || phone.includes(q);
   });
 
   return (

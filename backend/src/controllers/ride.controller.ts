@@ -102,7 +102,9 @@ export class RideController {
 
   async rateRide(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      sendSuccess(res, { rating: req.body.rating, review: req.body.review }, 'Rating submitted successfully');
+      const id = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+      const result = await rideService.rateRide(id, req.userId || 'customer-user-001', req.body.rating, req.body.review);
+      sendSuccess(res, result, 'Rating submitted successfully');
     } catch (err) {
       next(err);
     }

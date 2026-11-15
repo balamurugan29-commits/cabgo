@@ -48,6 +48,8 @@ class MemoryStore {
   notifications: Map<string, Notification[]> = new Map();
   supportTickets: Map<string, SupportTicket> = new Map();
   emergencyContacts: Map<string, EmergencyContact[]> = new Map();
+  auditLogs: Map<string, any> = new Map();
+  rejectedRideOffers: Map<string, Set<string>> = new Map();
 
   constructor() {
     this.seedDefaults();

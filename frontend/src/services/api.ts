@@ -49,6 +49,8 @@ export const driverApi = {
   addVehicle: (data: any) => apiClient.post<any, ApiResponse<Vehicle>>('/driver/vehicles', data),
   addDocument: (data: any) => apiClient.post<any, ApiResponse<DriverDocument>>('/driver/documents', data),
   getEarnings: () => apiClient.get<any, ApiResponse<{ today: number; thisWeek: number; thisMonth: number; total: number; recentEarnings: any[] }>>('/driver/earnings'),
+  getActiveRide: () => apiClient.get<any, ApiResponse<any>>('/driver/active-ride'),
+  rejectRide: (ride_id: string) => apiClient.post<any, ApiResponse<{ rejected: boolean }>>('/driver/reject-ride', { ride_id }),
   getNearby: (lat: number, lng: number, vehicleType?: VehicleType) =>
     apiClient.get<any, ApiResponse<any[]>>(`/driver/nearby?lat=${lat}&lng=${lng}${vehicleType ? `&vehicle_type=${vehicleType}` : ''}`),
 };
@@ -112,14 +114,26 @@ export const supportApi = {
 
 export const adminApi = {
   getStats: () => apiClient.get<any, ApiResponse<any>>('/admin/stats'),
+  getCustomers: () => apiClient.get<any, ApiResponse<any[]>>('/admin/customers'),
   getDrivers: (status?: DriverStatus) => apiClient.get<any, ApiResponse<any[]>>(`/admin/drivers${status ? `?status=${status}` : ''}`),
   approveDriver: (id: string) => apiClient.put<any, ApiResponse<DriverProfile>>(`/admin/drivers/${id}/approve`),
   rejectDriver: (id: string, reason: string) => apiClient.put<any, ApiResponse<DriverProfile>>(`/admin/drivers/${id}/reject`, { reason }),
   suspendUser: (id: string, is_suspended: boolean) => apiClient.put<any, ApiResponse<User>>(`/admin/users/${id}/suspend`, { is_suspended }),
+  getAuditLogs: () => apiClient.get<any, ApiResponse<any[]>>('/admin/audit-logs'),
   getRides: (status?: RideStatus) => apiClient.get<any, ApiResponse<Ride[]>>(`/admin/rides${status ? `?status=${status}` : ''}`),
   getPayments: () => apiClient.get<any, ApiResponse<Payment[]>>('/admin/payments'),
   getPromoCodes: () => apiClient.get<any, ApiResponse<PromoCode[]>>('/admin/promo-codes'),
   createPromoCode: (data: any) => apiClient.post<any, ApiResponse<PromoCode>>('/admin/promo-codes', data),
   updatePromoStatus: (code: string, is_active: boolean) => apiClient.put<any, ApiResponse<PromoCode>>(`/admin/promo-codes/${code}/status`, { is_active }),
   updateFareSetting: (vehicleType: VehicleType, data: any) => apiClient.put<any, ApiResponse<FareSetting>>(`/admin/fare-settings/${vehicleType}`, data),
+};
+
+export const locationApi = {
+  search: (q: string) => apiClient.get<any, ApiResponse<Array<{ display_name: string; lat: number; lng: number }>>>(`/location/search?q=${encodeURIComponent(q)}`),
+  reverse: (lat: number, lng: number) => apiClient.get<any, ApiResponse<{ address: string; lat: number; lng: number }>>(`/location/reverse?lat=${lat}&lng=${lng}`),
+};
+
+export const uploadApi = {
+  upload: (data: { file_base64: string; filename?: string; file_type?: string }) =>
+    apiClient.post<any, ApiResponse<{ url: string; filename: string; size: number }>>('/upload', data),
 };

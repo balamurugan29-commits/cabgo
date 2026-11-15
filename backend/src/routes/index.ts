@@ -8,6 +8,8 @@ import paymentRoutes from './payment.routes';
 import notificationRoutes from './notification.routes';
 import supportRoutes from './support.routes';
 import adminRoutes from './admin.routes';
+import locationRoutes from './location.routes';
+import uploadRoutes from './upload.routes';
 
 const router = Router();
 
@@ -20,6 +22,8 @@ router.use('/payments', paymentRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/support', supportRoutes);
 router.use('/admin', adminRoutes);
+router.use('/location', locationRoutes);
+router.use('/upload', uploadRoutes);
 
 // Health check endpoint
 router.get('/health', (_req, res) => {

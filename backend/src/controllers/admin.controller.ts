@@ -57,6 +57,24 @@ export class AdminController {
     }
   }
 
+  async getCustomers(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const customers = await adminService.getCustomers();
+      sendSuccess(res, customers);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async getAuditLogs(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const logs = await adminService.getAuditLogs();
+      sendSuccess(res, logs);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async getRides(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { status } = req.query;
