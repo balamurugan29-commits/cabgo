@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { User, UserRole } from '../types';
 import { memoryStore } from '../utils/store';
 import { NotFoundError } from '../utils/errors';
@@ -19,53 +19,56 @@ export class UserService {
     const clerkId = typeof clerkIdOrData === 'string' ? clerkIdOrData : clerkIdOrData.clerk_id;
     const data = typeof clerkIdOrData === 'string' ? (maybeData || { email: '' }) : clerkIdOrData;
     const role = data.role || UserRole.CUSTOMER;
-    try {
-      const { data: existing } = await supabase
-        .from('users')
-        .select('*')
-        .eq('clerk_id', clerkId)
-        .single();
 
-      if (existing) {
-        const { data: updated } = await supabase
+    if (isSupabaseConfigured) {
+      try {
+        const { data: existing } = await supabase
           .from('users')
-          .update({
-            first_name: data.first_name || null,
-            last_name: data.last_name || null,
-            phone: data.phone || null,
-            avatar_url: data.avatar_url || null,
-            updated_at: new Date().toISOString(),
-          })
+          .select('*')
           .eq('clerk_id', clerkId)
-          .select()
           .single();
 
-        if (updated) {
-          memoryStore.users.set(updated.id, updated as User);
-          return updated as User;
-        }
-      } else {
-        const { data: inserted, error } = await supabase
-          .from('users')
-          .insert({
-            clerk_id: clerkId,
-            email: data.email,
-            first_name: data.first_name || null,
-            last_name: data.last_name || null,
-            phone: data.phone || null,
-            avatar_url: data.avatar_url || null,
-            role,
-          })
-          .select()
-          .single();
+        if (existing) {
+          const { data: updated } = await supabase
+            .from('users')
+            .update({
+              first_name: data.first_name || null,
+              last_name: data.last_name || null,
+              phone: data.phone || null,
+              avatar_url: data.avatar_url || null,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('clerk_id', clerkId)
+            .select()
+            .single();
 
-        if (!error && inserted) {
-          memoryStore.users.set(inserted.id, inserted as User);
-          return inserted as User;
+          if (updated) {
+            memoryStore.users.set(updated.id, updated as User);
+            return updated as User;
+          }
+        } else {
+          const { data: inserted, error } = await supabase
+            .from('users')
+            .insert({
+              clerk_id: clerkId,
+              email: data.email,
+              first_name: data.first_name || null,
+              last_name: data.last_name || null,
+              phone: data.phone || null,
+              avatar_url: data.avatar_url || null,
+              role,
+            })
+            .select()
+            .single();
+
+          if (!error && inserted) {
+            memoryStore.users.set(inserted.id, inserted as User);
+            return inserted as User;
+          }
         }
+      } catch {
+        // Fallback to store
       }
-    } catch {
-      // Fallback to store
     }
 
     // Memory Store Fallback
@@ -105,19 +108,23 @@ export class UserService {
   }
 
   async getUserByClerkId(clerkId: string): Promise<User> {
-    try {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('clerk_id', clerkId)
-        .single();
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('users')
+          .select('*')
+          .eq('clerk_id', clerkId)
+          .single();
 
-      if (!error && data) return data as User;
-    } catch {
-      // fallback
+        if (!error && data) return data as User;
+      } catch {
+        // fallback
+      }
     }
 
-    const user = Array.from(memoryStore.users.values()).find((u) => u.clerk_id === clerkId);
+    const user = Array.from(memoryStore.users.values()).find(
+      (u) => u.clerk_id === clerkId || u.id === clerkId
+    );
     if (!user) {
       throw new NotFoundError('User not found');
     }
@@ -125,11 +132,13 @@ export class UserService {
   }
 
   async getUserById(id: string): Promise<User> {
-    try {
-      const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
-      if (!error && data) return data as User;
-    } catch {
-      // fallback
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase.from('users').select('*').eq('id', id).single();
+        if (!error && data) return data as User;
+      } catch {
+        // fallback
+      }
     }
 
     const user = memoryStore.users.get(id);

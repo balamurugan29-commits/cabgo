@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { clerkMiddleware, getAuth } from '@clerk/express';
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { UserRole } from '../types';
 import { AuthorizationError, AppError } from '../utils/errors';
 import { memoryStore } from '../utils/store';
@@ -60,19 +60,21 @@ export function requireRole(...roles: UserRole[]) {
       }
 
       let user = null;
-      try {
-        const { data } = await supabase
-          .from('users')
-          .select('*')
-          .eq('clerk_id', clerkId)
-          .single();
-        user = data;
-      } catch {
-        // fallback
+      if (isSupabaseConfigured) {
+        try {
+          const { data } = await supabase
+            .from('users')
+            .select('*')
+            .eq('clerk_id', clerkId)
+            .single();
+          user = data;
+        } catch {
+          // fallback
+        }
       }
 
       if (!user) {
-        user = Array.from(memoryStore.users.values()).find((u) => u.clerk_id === clerkId);
+        user = Array.from(memoryStore.users.values()).find((u) => u.clerk_id === clerkId || u.id === clerkId);
       }
 
       if (!user) {

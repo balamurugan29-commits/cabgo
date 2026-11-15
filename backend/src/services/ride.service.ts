@@ -214,10 +214,12 @@ export class RideService {
         updated_at: new Date().toISOString(),
       };
 
-      try {
-        await supabase.from('rides').update(updatedRide).eq('id', rideId);
-      } catch {
-        // fallback
+      if (isSupabaseConfigured) {
+        try {
+          await supabase.from('rides').update(updatedRide).eq('id', rideId);
+        } catch {
+          // fallback
+        }
       }
 
       memoryStore.rides.set(rideId, updatedRide);

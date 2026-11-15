@@ -1,5 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { Notification } from '../types';
 import { memoryStore } from '../utils/store';
 
@@ -16,10 +16,12 @@ export class NotificationService {
       created_at: new Date().toISOString(),
     };
 
-    try {
-      await supabase.from('notifications').insert(notification);
-    } catch {
-      // fallback
+    if (isSupabaseConfigured) {
+      try {
+        await supabase.from('notifications').insert(notification);
+      } catch {
+        // fallback
+      }
     }
 
     const list = memoryStore.notifications.get(userId) || [];

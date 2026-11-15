@@ -1,20 +1,22 @@
 import { v4 as uuidv4 } from 'uuid';
-import { supabase } from '../config/supabase';
+import { supabase, isSupabaseConfigured } from '../config/supabase';
 import { CustomerProfile, EmergencyContact } from '../types';
 import { memoryStore } from '../utils/store';
 import { NotFoundError } from '../utils/errors';
 
 export class CustomerService {
   async getProfile(userId: string): Promise<CustomerProfile> {
-    try {
-      const { data, error } = await supabase
-        .from('customer_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      if (!error && data) return data as CustomerProfile;
-    } catch {
-      // fallback
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('customer_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+        if (!error && data) return data as CustomerProfile;
+      } catch {
+        // fallback
+      }
     }
 
     let profile = memoryStore.customerProfiles.get(userId);

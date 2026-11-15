@@ -33,7 +33,8 @@ export class FareController {
       } else {
         const results = await fareService.calculateAllEstimates(
           Number(distance_km),
-          Number(duration_minutes)
+          Number(duration_minutes),
+          promo_code as string | undefined
         );
         sendSuccess(res, results);
       }

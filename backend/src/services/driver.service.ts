@@ -10,7 +10,7 @@ import {
   VehicleType,
 } from '../types';
 import { memoryStore } from '../utils/store';
-import { NotFoundError } from '../utils/errors';
+import { NotFoundError, AppError } from '../utils/errors';
 import { calculateDistance } from '../utils/distance';
 
 export class DriverService {
@@ -65,15 +65,17 @@ export class DriverService {
   }
 
   async getProfileByUserId(userId: string): Promise<DriverProfile | null> {
-    try {
-      const { data, error } = await supabase
-        .from('driver_profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .single();
-      if (!error && data) return data as DriverProfile;
-    } catch {
-      // fallback
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('driver_profiles')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+        if (!error && data) return data as DriverProfile;
+      } catch {
+        // fallback
+      }
     }
 
     const found = Array.from(memoryStore.driverProfiles.values()).find((d) => d.user_id === userId);
@@ -81,15 +83,17 @@ export class DriverService {
   }
 
   async getProfileById(driverId: string): Promise<DriverProfile> {
-    try {
-      const { data, error } = await supabase
-        .from('driver_profiles')
-        .select('*')
-        .eq('id', driverId)
-        .single();
-      if (!error && data) return data as DriverProfile;
-    } catch {
-      // fallback
+    if (isSupabaseConfigured) {
+      try {
+        const { data, error } = await supabase
+          .from('driver_profiles')
+          .select('*')
+          .eq('id', driverId)
+          .single();
+        if (!error && data) return data as DriverProfile;
+      } catch {
+        // fallback
+      }
     }
 
     const profile = memoryStore.driverProfiles.get(driverId);
@@ -100,7 +104,7 @@ export class DriverService {
   async updateOnlineStatus(driverId: string, isOnline: boolean): Promise<DriverProfile> {
     const profile = await this.getProfileById(driverId);
     if (isOnline && profile.status !== DriverStatus.APPROVED) {
-      throw new Error('Only approved drivers can go online');
+      throw new AppError('Only approved drivers can go online', 400);
     }
 
     try {

@@ -3,11 +3,20 @@ import { driverService } from '../services/driver.service';
 import { rideService } from '../services/ride.service';
 import { userService } from '../services/user.service';
 import { sendSuccess } from '../utils/response';
+import { UserRole } from '../types';
 
 export class DriverController {
   async register(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const user = await userService.getUserByClerkId(req.userId || 'clerk_driver_001');
+      let user = null;
+      try {
+        user = await userService.getUserByClerkId(req.userId || 'clerk_driver_001');
+      } catch {
+        user = await userService.syncUser(req.userId || 'clerk_driver_001', {
+          email: `${req.userId || 'driver'}@cabgo.com`,
+          role: UserRole.DRIVER,
+        });
+      }
       const result = await driverService.register(user.id, req.body);
       sendSuccess(res, result, 'Driver registered successfully. Pending approval.', 201);
     } catch (err) {

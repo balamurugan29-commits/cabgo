@@ -148,7 +148,7 @@ export class FareService {
     };
   }
 
-  async calculateAllEstimates(distanceKm: number, durationMinutes: number) {
+  async calculateAllEstimates(distanceKm: number, durationMinutes: number, promoCode?: string) {
     const types = [
       VehicleType.BIKE,
       VehicleType.AUTO,
@@ -159,13 +159,15 @@ export class FareService {
 
     const results = await Promise.all(
       types.map(async (type) => {
-        const fare = await this.calculateFare(type, distanceKm, durationMinutes);
+        const fare = await this.calculateFare(type, distanceKm, durationMinutes, promoCode);
         return {
           vehicleType: type,
           estimatedFare: fare.estimatedFare,
           durationMinutes,
           distanceKm,
+          discount: fare.breakdown.discountAmount,
           breakdown: fare.breakdown,
+          promoDetails: fare.promoDetails,
         };
       })
     );
